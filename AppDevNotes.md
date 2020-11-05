@@ -75,7 +75,17 @@ Once you exit the interactive shell, the ephemeral layers will be discarded auto
 
 **If you are finding the metadata not updating in JARVICE even after checking in the local container, ensure the `docker push` worked correctly (step 3) after the last successful build (step 2).**
 
-Note also that Docker uses checksums in layers to determine what to rebuild, and will rebuild all subsequent layers when it decides one must be rebuilt.  Checksums pertain to all lines in a `Dockerfile` - for `COPY` lines, Docker will actually checksum the objects being copied into the container.  If there is no change to a layer, it will be used from cache if possible.  If you are downloading objects from outside the local tree using for example the `curl` command, Docker may cache the entire layer even if the remote objects changed.  To force a layer build, either clear your local build cache or insert a meaningless space character in the `RUN` layer itself - e.g. change `curl https://abcdefg.io/x.txt` to `curl  https://abcdefg.io/x.txt`.
+Note also that Docker uses checksums in layers to determine what to rebuild, and will rebuild all subsequent layers when it decides one must be rebuilt.  Checksums pertain to all lines in a `Dockerfile` - for `COPY` lines, Docker will actually checksum the objects being copied into the container.  If there is no change to a layer, it will be used from cache if possible.  If you are downloading objects from outside the local tree using for example the `curl` command, Docker may cache the entire layer even if the remote objects changed.
+
+To force a layer build, either clear your local build cache or insert a meaningless space character in the `RUN` layer itself - e.g. change:
+```sh
+RUN curl https://abcdefg.io/x.txt
+```
+to:
+
+```sh
+RUN curl   https://abcdefg.io/x.txt
+```
 
 ### Best Practices
 
