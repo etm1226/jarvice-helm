@@ -41,7 +41,7 @@ A `docker build` command requires pointing at a directory that contains a `Docke
 1. Modify desired file(s) in the tree, commit to revision control as appropriate.
 2. Use `docker build` to build the container - optionally use the `-t` argument to tag it, or use an explicit `docker tag` operation once it successfully completes.
 3. Use `docker push` to push the tagged container to its respective registry.
-4. In your JARVICE platform account, log in to the respective Docker registry (if the repository you pushed to is private) using the login widget in the *PushToCompute* view; if previously logged in and the credentials have not changed (or do not need to be re-autorhized) you can skip this step.
+4. In your JARVICE platform account, log in to the respective Docker registry (if the repository you pushed to is private) using the login widget in the *PushToCompute* view; if previously logged in and the credentials have not changed (or do not need to be re-authorized) you can skip this step.
 5. In your JARVICE platform account, click the context menu in the application target in the *PushToCompute* view and select the *Pull* option.
 6. In your JARVICE platform account, click the context menu in the application target in the *PushToCompute* view and select the *History* option.
 7. Once the pull completes, as shown in the pull history window, close the window and wait a few seconds for the application target to refresh (this will apply any AppDef changes you may have made)
@@ -57,7 +57,7 @@ Problem|Likely Cause|Resolution
 JARVICE docker login failure (step 4)|generally caused either by a mistyped username/password, an invalid JSON key (if using the JSON upload method), or a communications error to the registry|ensure the username/password is correct, and if it is, contact your system administrator
 JARVICE docker pull failure (step 5/6)|will be explained in the history window (from step 6)|ensure the container address is correct and that the login was successful from step 4; if this is the case, contact your system administrator
 JARVICE docker pull does not complete (step 5/6)|the `Dockerfile` is not optimized properly; the pull process downloads layers in reverse order until it finds all the metadata for a JARVICE app; see [Best Practices](#best-practices) for details on adding this optimization at the end of the `Dockerfile`|optimized the `Dockerfile` and repeat step 5; the pull should be relatively instantaneous; if it still does not complete, contact your system administrator
-Application metadata does not refresh (e.g. AppDef, screenshot, EULA, etc.) - step 7|either the metadata was not properly updated in the container, or it has not yet refreshed|check that the local container build has the correct metadata (see below), and **ensure that you pushed it to the registry after the build**; if it does, perform an explicit browser page reload and check again
+Application metadata does not refresh (e.g. AppDef, screenshot, EULA, etc.) - step 7|either the metadata was not properly updated in the container, or it has not yet refreshed|check that the local container build has the correct metadata (see below), and **ensure that you pushed it to the registry after the build**; if it does, perform an explicit browser page reload and check again; also check that the AppDef is valid, as an invalid AppDef may lead to a silent failure (see [Best Practices](#best-practices))
 
 #### Checking metadata files inside a built container
 
@@ -81,7 +81,12 @@ Note also that Docker uses checksums in layers to determine what to rebuild, and
 
 1. Try to avoid deleting and creating new app targets in JARVICE for application updates; if the application update replaces a previous version, reuse the same target and simply change the container address to reflect the proper tag.  This reduces the risk of referential integrity errors in JARVICE.  Note that changing an app target while users are already consuming that app will not impact them until they launch the app again in the future.
 2. Use revision control for the container build tree, and try to correlate source tags with container tags; this will make it easier to determine what source version a container was built from in the future; avoid building containers from source files that are not committed, as this will present inconsistencies.
-3. Add the following layer at the very end of your `Dockerfile` which will substantially speed up pulls into JARVICE:
+3. Add an AppDef validation line to your `Dockerfile` after the line that copies the `AppDef.json` file into the container; this will ensure the build fails if the AppDef does not validate properly:
+    ```sh
+    RUN curl --fail -X POST -d @/etc/NAE/AppDef.json https://api.jarvice.com/jarvice/validate
+    ```
+    Note that if you prefer not to do this automatically, you can POST your AppDef manually from outside the container using a similar `curl` command to `https://api.jarvice.com/jarvice/validate`; also, you can use your local JARVICE cluster's API endpoint instead of the public Nimbix Cloud one as illustrated - contact your system administrator for the URL if needed.
+4. Add the following layer at the very end of your `Dockerfile` which will substantially speed up pulls into JARVICE:
     ```sh
     RUN mkdir -p /etc/NAE && touch /etc/NAE/{screenshot.png,screenshot.txt,license.txt,AppDef.json}
     ```
