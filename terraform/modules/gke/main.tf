@@ -27,11 +27,23 @@ locals {
         "https://www.googleapis.com/auth/cloud-platform"
     ]
 
+    project_services = [
+        "compute.googleapis.com",
+        "container.googleapis.com"
+    ]
+
     username = "kubernetes-admin"
 }
 
-resource "random_id" "password" {
-    byte_length = 18
+resource "google_project_service" "project_services" {
+    for_each = toset(local.project_services)
+
+    service = each.value
+    disable_dependent_services = false
+    disable_on_destroy = false
+}
+
+data "google_client_config" "jarvice" {
 }
 
 data "google_container_engine_versions" "kubernetes_version" {
@@ -103,17 +115,14 @@ EOF
     #    }
     #}
 
-    master_auth {
-        username = local.username
-        password = random_id.password.hex
-
-        client_certificate_config {
-            issue_client_certificate = true
-        }
-    }
-
     resource_labels = {
         "cluster_name" = var.cluster.meta["cluster_name"]
+    }
+
+    depends_on = [google_project_service.project_services]
+
+    lifecycle {
+        ignore_changes = [min_master_version, node_version]
     }
 }
 
@@ -166,6 +175,10 @@ EOF
         ]
 
         tags = [google_container_cluster.jarvice.name, "jxesystem"]
+    }
+
+    lifecycle {
+        ignore_changes = [version]
     }
 }
 
@@ -243,7 +256,7 @@ EOF
     }
 
     lifecycle {
-        ignore_changes = [node_config[0].taint]
+        ignore_changes = [version, node_config[0].taint]
     }
 }
 
