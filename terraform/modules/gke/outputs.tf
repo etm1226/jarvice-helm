@@ -18,19 +18,13 @@ contexts:
   name: ${google_container_cluster.jarvice.name}
 clusters:
 - cluster:
-    server: ${local.kube_config["host"]}
+    server: https://${local.kube_config["host"]}
     certificate-authority-data: ${local.kube_config["cluster_ca_certificate"]}
   name: ${google_container_cluster.jarvice.name}
 users:
 - name: ${google_container_cluster.jarvice.name}
   user:
-    auth-provider:
-      config:
-        cmd-args: config config-helper --format=json
-        cmd-path: gcloud
-        expiry-key: '{.credential.token_expiry}'
-        token-key: '{.credential.access_token}'
-      name: gcp
+    token: ${local.kube_config["token"]}
 EOF
 }
 
@@ -38,9 +32,22 @@ output "kube_config" {
     value = local.kube_config
 }
 
-locals {
-    helm_jarvice_values = yamldecode(module.helm.metadata["jarvice"]["values"])
-    ingress_host = lookup(local.helm_jarvice_values["jarvice"], "JARVICE_CLUSTER_TYPE", "upstream") == "downstream" ? local.helm_jarvice_values["jarvice_k8s_scheduler"]["ingressHost"] : local.helm_jarvice_values["jarvice_mc_portal"]["ingressHost"]
+resource "null_resource" "ingress_host_file" {
+    triggers = {
+        path = local.jarvice_config["ingress_host_path"]
+        jarvice_revision = module.helm.metadata["jarvice"]["revision"]
+        jarvice_version = module.helm.metadata["jarvice"]["version"]
+        jarvice_values = module.helm.metadata["jarvice"]["values"]
+    }
+
+    provisioner "local-exec" {
+        command = "mkdir -p ${dirname(pathexpand(self.triggers.path))} && kubectl --kubeconfig ${local_file.kube_config.filename} -n kube-system get service traefik -o jsonpath='{.status.loadBalancer.ingress[0].ip}' >${pathexpand(self.triggers.path)}"
+    }
+
+    provisioner "local-exec" {
+        when = destroy
+        command = fileexists(self.triggers.path) ? "rm -f ${self.triggers.path}" : "/bin/true"
+    }
 }
 
 output "cluster_info" {
@@ -59,11 +66,9 @@ export KUBECONFIG=${local.kube_config["config_path"]}
 
 ${module.common.cluster_output_message}:
 
-https://${local.ingress_host}/
+https://${fileexists(null_resource.ingress_host_file.triggers.path) ? file(null_resource.ingress_host_file.triggers.path) : "<undefined>"}/
 
 ===============================================================================
 EOF
-
-    depends_on = [module.helm]
 }
 
